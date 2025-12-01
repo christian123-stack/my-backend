@@ -1,26 +1,50 @@
-// server.js (ES module)
+// server.js (ES Modules)
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import helmet from "helmet";
+
 import User from "./models/User.js";
 import Kos from "./models/Kos.js";
 import commentRoute from "./routes/commentRoute.js";
 
-const PORT = process.env.PORT || 3000;
+dotenv.config();
+
+const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET;
+const MONGO_URI = process.env.MONGO_URI;
+
 const app = express();
-app.use(cors());
+
+// --- SECURITY ---
+app.use(helmet());
+
+// --- CORS ---
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    methods: ["GET", "POST", "DELETE", "PUT"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+
 app.use(express.json({ limit: "20mb" }));
 
-// ---- REGISTER ----
+// ---------------------- REGISTER ----------------------
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
     const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ message: "Email sudah terdaftar!" });
+    if (existing)
+      return res.status(400).json({ message: "Email sudah terdaftar!" });
 
     const hashed = await bcrypt.hash(password, 10);
+
     const user = new User({ name, email, password: hashed });
     await user.save();
 
@@ -31,22 +55,29 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// ---- LOGIN ----
+// ---------------------- LOGIN ----------------------
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "Email tidak ditemukan" });
+
+    if (!user)
+      return res.status(400).json({ message: "Email tidak ditemukan" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Password salah" });
+    if (!isMatch)
+      return res.status(400).json({ message: "Password salah" });
 
-    const token = jwt.sign({ id: user._id, email: user.email }, "RAHASIA_SUPER_AMAN", { expiresIn: "1d" });
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "1d" }
+    );
 
     res.json({
       message: "Login berhasil",
       token,
-      user: { id: user._id, name: user.name, email: user.email }
+      user: { id: user._id, name: user.name, email: user.email },
     });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
@@ -54,7 +85,7 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// ---- UPLOAD KOS ----
+// ---------------------- UPLOAD KOS ----------------------
 app.post("/api/kos", async (req, res) => {
   try {
     const { name, price, description, address, image, userId } = req.body;
@@ -66,10 +97,11 @@ app.post("/api/kos", async (req, res) => {
       address,
       image,
       createdBy: userId,
-      comments: []
+      comments: [],
     });
 
     await newKos.save();
+
     res.json({ message: "Kos berhasil disimpan!", kos: newKos });
   } catch (err) {
     console.error("UPLOAD KOS ERROR:", err);
@@ -77,7 +109,7 @@ app.post("/api/kos", async (req, res) => {
   }
 });
 
-// ---- GET ALL KOS ----
+// ---------------------- GET ALL KOS ----------------------
 app.get("/api/kos", async (req, res) => {
   try {
     const data = await Kos.find().populate("createdBy", "name email");
@@ -88,27 +120,23 @@ app.get("/api/kos", async (req, res) => {
   }
 });
 
-// ---- GET KOS BY ID (PENTING untuk fetch komentar di frontend) ----
+// ---------------------- COMMENTS ----------------------
 app.use("/api/comments", commentRoute);
 
-// DELETE KOS
-// DELETE KOS
+// ---------------------- DELETE KOS ----------------------
 app.delete("/api/kos/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;  // ← FIX DI SINI
+    const { userId } = req.query;
 
     const kos = await Kos.findById(id);
-    if (!kos) {
+    if (!kos)
       return res.status(404).json({ message: "Kos tidak ditemukan" });
-    }
 
     const isOwner = kos.createdBy.toString() === userId;
-    const isAdmin = userId === "admin";
 
-    if (!isOwner && !isAdmin) {
+    if (!isOwner)
       return res.status(403).json({ message: "Tidak punya akses!" });
-    }
 
     await Kos.findByIdAndDelete(id);
 
@@ -119,11 +147,10 @@ app.delete("/api/kos/:id", async (req, res) => {
   }
 });
 
-
-// ---- DB CONNECT ----
+// ---------------------- CONNECT MONGO ----------------------
 mongoose
-  .connect("mongodb+srv://admin:paswword@cluster0.gjtorfo.mongodb.net/?appName=Cluster0")
+  .connect(MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB CONNECT ERROR:", err));
 
-app.listen(PORT, () => console.log("Server berjalan di port 5000"));
+app.listen(PORT, () => console.log("Server berjalan di port", PORT));
