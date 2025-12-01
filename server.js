@@ -16,25 +16,30 @@ dotenv.config();
 const PORT = process.env.PORT || 8080;
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGO_URI = process.env.MONGO_URI;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 const app = express();
 
-// --- SECURITY ---
+// ------------------------------------ SECURITY ------------------------------------
 app.use(helmet());
 
-// --- CORS ---
+// ------------------------------------ CORS ------------------------------------
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: FRONTEND_URL, // contoh: "https://christian123-stack.github.io/my-frontend/"
     methods: ["GET", "POST", "DELETE", "PUT"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-
 app.use(express.json({ limit: "20mb" }));
 
-// ---------------------- REGISTER ----------------------
+// ------------------------------------ ROOT ROUTE ------------------------------------
+app.get("/", (req, res) => {
+  res.send("Backend API is running 🚀");
+});
+
+// ------------------------------------ REGISTER ------------------------------------
 app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -55,7 +60,7 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// ---------------------- LOGIN ----------------------
+// ------------------------------------ LOGIN ------------------------------------
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -85,7 +90,7 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// ---------------------- UPLOAD KOS ----------------------
+// ------------------------------------ UPLOAD KOS ------------------------------------
 app.post("/api/kos", async (req, res) => {
   try {
     const { name, price, description, address, image, userId } = req.body;
@@ -109,7 +114,7 @@ app.post("/api/kos", async (req, res) => {
   }
 });
 
-// ---------------------- GET ALL KOS ----------------------
+// ------------------------------------ GET ALL KOS ------------------------------------
 app.get("/api/kos", async (req, res) => {
   try {
     const data = await Kos.find().populate("createdBy", "name email");
@@ -120,10 +125,10 @@ app.get("/api/kos", async (req, res) => {
   }
 });
 
-// ---------------------- COMMENTS ----------------------
+// ------------------------------------ COMMENTS ------------------------------------
 app.use("/api/comments", commentRoute);
 
-// ---------------------- DELETE KOS ----------------------
+// ------------------------------------ DELETE KOS ------------------------------------
 app.delete("/api/kos/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -147,10 +152,11 @@ app.delete("/api/kos/:id", async (req, res) => {
   }
 });
 
-// ---------------------- CONNECT MONGO ----------------------
+// ------------------------------------ MONGO CONNECTION ------------------------------------
 mongoose
   .connect(MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB CONNECT ERROR:", err));
 
+// ------------------------------------ START SERVER ------------------------------------
 app.listen(PORT, () => console.log("Server berjalan di port", PORT));
